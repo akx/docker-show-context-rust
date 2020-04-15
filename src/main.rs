@@ -73,6 +73,25 @@ impl DockerIgnore {
     }
 }
 
+fn iterate_entries<'a>(
+    root_directory: &'a String,
+    dockerignore: &'a DockerIgnore,
+) -> Box<dyn Iterator<Item = walkdir::Result<walkdir::DirEntry>> + 'a> {
+    Box::new(
+        WalkDir::new(root_directory)
+            .sort_by(|a, b| a.path().cmp(b.path()))
+            .into_iter()
+            .filter_entry(move |entry| {
+                !dockerignore.check_path_ignored(
+                    &entry
+                        .path()
+                        .strip_prefix(&root_directory)
+                        .expect("prefix error"),
+                )
+            }),
+    )
+}
+
 fn go(opts: &Opts) -> Result<(), Box<dyn Error>> {
     let root_directory = &opts.directory;
     let dockerignore_path = match &opts.dockerignore_path {
@@ -80,30 +99,16 @@ fn go(opts: &Opts) -> Result<(), Box<dyn Error>> {
         Some(val) => val.to_owned(),
     };
     let dockerignore = DockerIgnore::read(dockerignore_path)?;
-    for entry in WalkDir::new(root_directory)
-        .sort_by(|a, b| a.path().cmp(b.path()))
-        .into_iter()
-        .filter_entry(|entry| {
-            !dockerignore.check_path_ignored(
-                &entry
-                    .path()
-                    .strip_prefix(&root_directory)
-                    .expect("prefix error"),
-            )
-        })
-    {
+    for entry in iterate_entries(&root_directory, &dockerignore) {
         match entry {
             Ok(entry) => {
                 if entry.metadata()?.is_file() {
-                    println!(
-                        "{}",
-                        if opts.absolute_paths {
-                            entry.path()
-                        } else {
-                            entry.path().strip_prefix(&root_directory)?
-                        }
-                        .display()
-                    );
+                    let path = if opts.absolute_paths {
+                        entry.path()
+                    } else {
+                        entry.path().strip_prefix(&root_directory)?
+                    };
+                    println!("{}", path.display());
                 }
             }
             Err(err) => {
