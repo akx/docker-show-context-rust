@@ -1,0 +1,10 @@
+[package]
+name = "docker-show-context"
+version = "0.1.0"
+authors = ["Aarni Koskela <akx@iki.fi>"]
+edition = "2018"
+
+[dependencies]
+walkdir = "2.3.1"
+clap = { git = "https://github.com/clap-rs/clap/" }
+glob = "0.3.0"
