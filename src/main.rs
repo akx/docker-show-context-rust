@@ -1,10 +1,8 @@
 use clap::Clap;
 use std::error::Error;
-use std::fs::File;
-use std::io;
-use std::io::BufRead;
-use std::path::Path;
 use walkdir::WalkDir;
+mod dockerignore;
+use dockerignore::DockerIgnore;
 
 #[derive(Clap, Debug)]
 struct Opts {
@@ -15,66 +13,8 @@ struct Opts {
     dockerignore_path: Option<String>,
 }
 
-#[derive(Debug)]
-struct DockerIgnoreLine {
-    string: String,
-    lineno: usize,
-    is_comment: bool,
-    is_negate: bool,
-    pattern: Result<glob::Pattern, glob::PatternError>,
-}
-
-#[derive(Debug)]
-struct DockerIgnore {
-    lines: Vec<DockerIgnoreLine>,
-}
-
-impl DockerIgnore {
-    fn read<P>(filename: P) -> Result<DockerIgnore, io::Error>
-    where
-        P: AsRef<Path>,
-    {
-        let file = File::open(filename)?;
-        let lines = io::BufReader::new(file).lines();
-        let ents = lines
-            .filter_map(|l| l.ok())
-            .enumerate()
-            .map(|(lineno, string)| {
-                let is_comment = string.starts_with('#');
-                let is_negate = string.starts_with('!');
-                let pattern = glob::Pattern::new(if is_negate { &string[1..] } else { &string });
-                DockerIgnoreLine {
-                    string,
-                    lineno: lineno + 1,
-                    is_comment,
-                    is_negate,
-                    pattern,
-                }
-            });
-        Ok(DockerIgnore {
-            lines: ents.collect(),
-        })
-    }
-
-    fn check_path_ignored(self: &Self, path: &Path) -> bool {
-        let mut is_ignored: bool = false;
-        for ie in &self.lines {
-            if ie.is_comment {
-                continue;
-            }
-            if ie.pattern.is_err() {
-                continue;
-            }
-            if ie.pattern.as_ref().unwrap().matches_path(&path) {
-                is_ignored = !ie.is_negate;
-            }
-        }
-        is_ignored
-    }
-}
-
 fn iterate_entries<'a>(
-    root_directory: &'a String,
+    root_directory: &'a str,
     dockerignore: &'a DockerIgnore,
 ) -> Box<dyn Iterator<Item = walkdir::Result<walkdir::DirEntry>> + 'a> {
     Box::new(
