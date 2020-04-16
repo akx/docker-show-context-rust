@@ -1,7 +1,9 @@
 use clap::Clap;
 use std::error::Error;
 use walkdir::WalkDir;
+
 mod dockerignore;
+
 use dockerignore::DockerIgnore;
 
 #[derive(Clap, Debug)]
@@ -16,20 +18,18 @@ struct Opts {
 fn iterate_entries<'a>(
     root_directory: &'a str,
     dockerignore: &'a DockerIgnore,
-) -> Box<dyn Iterator<Item = walkdir::Result<walkdir::DirEntry>> + 'a> {
-    Box::new(
-        WalkDir::new(root_directory)
-            .sort_by(|a, b| a.path().cmp(b.path()))
-            .into_iter()
-            .filter_entry(move |entry| {
-                !dockerignore.check_path_ignored(
-                    &entry
-                        .path()
-                        .strip_prefix(&root_directory)
-                        .expect("prefix error"),
-                )
-            }),
-    )
+) -> impl Iterator<Item = walkdir::Result<walkdir::DirEntry>> + 'a {
+    WalkDir::new(root_directory)
+        .sort_by(|a, b| a.path().cmp(b.path()))
+        .into_iter()
+        .filter_entry( move |entry| {
+            !dockerignore.check_path_ignored(
+                &entry
+                    .path()
+                    .strip_prefix(&root_directory)
+                    .expect("prefix error"),
+            )
+        })
 }
 
 fn go(opts: &Opts) -> Result<(), Box<dyn Error>> {
